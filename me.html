@@ -69,11 +69,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <!-- OrbitControls -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <!-- GLTFLoader لتحميل المجسم GLB -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <!-- FBXLoader لتحميل ملف الحركة FBX -->
+    <!-- FBXLoader -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
-    <!-- Fflate لفك ضغط ملفات FBX -->
+    <!-- Fflate for FBX decompression -->
     <script src="https://cdn.jsdelivr.net/npm/fflate@0.7.4/umd/index.min.js"></script>
 </head>
 <body>
@@ -81,7 +79,7 @@
         <a href="index.html" class="i">العوده الى الصفحه الرئيسيه</a>
     </header>
 
-    <div id="loading">جاري تحميل الشخصية والحركة...</div>
+    <div id="loading">جاري تحميل المشهد والقاعدة والحركة...</div>
     
     <div class="instructions">💡 اسحب بالماوس للتدوير حول الشخصية</div>
     <div id="canvas-container"></div>
@@ -95,69 +93,82 @@
         scene.fog = new THREE.FogExp2(0x0d0e15, 0.02);
 
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 1.0, 2.8);
+        camera.position.set(0, 150, 350);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         container.appendChild(renderer.domElement);
 
-        // 2. التحكم
+        // 2. أدوات التحكم
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
-        controls.target.set(0, 0.8, 0);
+        controls.target.set(0, 100, 0);
 
         // 3. الإضاءة
         const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
         scene.add(ambientLight);
 
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        dirLight.position.set(2, 5, 3);
+        dirLight.position.set(100, 300, 200);
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        const rimLight = new THREE.PointLight(0x00ffff, 3, 10);
-        rimLight.position.set(-2, 3, -2);
+        const rimLight = new THREE.PointLight(0x00ffff, 3, 600);
+        rimLight.position.set(-150, 200, -150);
         scene.add(rimLight);
 
-        // 4. القاعدة المتوهجة
-        const baseGeo = new THREE.CylinderGeometry(1.2, 1.4, 0.15, 64);
-        const baseMat = new THREE.MeshStandardMaterial({ color: 0x11131a, roughness: 0.2, metalness: 0.8 });
+        // 4. القاعدة الأنيقة والمتوهجة تحت الشخصية (بأبعاد تناسب مقياس FBX)
+        const baseGeo = new THREE.CylinderGeometry(120, 140, 15, 64);
+        const baseMat = new THREE.MeshStandardMaterial({ 
+            color: 0x11131a, 
+            roughness: 0.2,
+            metalness: 0.8
+        });
         const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+        baseMesh.position.y = -7.5;
+        baseMesh.receiveShadow = true;
         scene.add(baseMesh);
 
-        const ringGeo = new THREE.TorusGeometry(1.2, 0.03, 16, 100);
+        const ringGeo = new THREE.TorusGeometry(120, 3, 16, 100);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0x9900ff });
         const ringMesh = new THREE.Mesh(ringGeo, ringMat);
         ringMesh.rotation.x = Math.PI / 2;
-        ringMesh.position.y = 0.08;
+        ringMesh.position.y = 0.5;
         scene.add(ringMesh);
 
-        // 5. محرك الحركة والتحميل
+        // 5. تحميل المجسم والحركة بصيغة FBX مع القاعدة
         let mixer;
         const clock = new THREE.Clock();
-        const gltfLoader = new THREE.GLTFLoader();
         const fbxLoader = new THREE.FBXLoader();
 
-        gltfLoader.load('model.glb', (gltf) => {
-            const model = gltf.scene;
-            model.position.set(0, -0.9, 0);
-            scene.add(model);
+        fbxLoader.load('model.fbx', (object) => {
+            scene.add(object);
 
-            model.traverse((child) => {
+            object.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
                 }
             });
 
-            mixer = new THREE.AnimationMixer(model);
+            const box = new THREE.Box3().setFromObject(object);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+
+            controls.target.copy(center);
+            camera.position.set(center.x, center.y + size.y * 0.1, center.z + size.length() * 1.5);
+            controls.update();
+
+            mixer = new THREE.AnimationMixer(object);
 
             fbxLoader.load('SSS.fbx', (animFbx) => {
                 if (animFbx.animations.length > 0) {
                     const clip = animFbx.animations[0];
+
                     clip.tracks.forEach((track) => {
                         track.name = track.name.replace('mixamorig', '');
                     });
@@ -169,14 +180,25 @@
 
                 loadingEl.style.opacity = '0';
                 setTimeout(() => loadingEl.remove(), 500);
-            }, undefined, (error) => {
-                console.error('خطأ في تحميل الحركة:', error);
-                loadingEl.innerText = 'فشل تحميل الحركة SSS.fbx';
+
+            }, (xhr) => {
+                if (xhr.lengthComputable) {
+                    const percent = Math.round((xhr.loaded / xhr.total) * 100);
+                    loadingEl.innerText = `جاري تحميل الحركة... ${percent}%`;
+                }
+            }, (error) => {
+                console.error('Error loading animation:', error);
+                loadingEl.innerText = 'فشل تحميل ملف الحركة SSS.fbx!';
             });
 
-        }, undefined, (error) => {
-            console.error('خطأ في تحميل المجسم:', error);
-            loadingEl.innerText = 'فشل تحميل المجسم model.glb (تأكد من اسم ومسار الملف)';
+        }, (xhr) => {
+            if (xhr.lengthComputable) {
+                const percent = Math.round((xhr.loaded / xhr.total) * 100);
+                loadingEl.innerText = `جاري تحميل المجسم... ${percent}%`;
+            }
+        }, (error) => {
+            console.error('Error loading model:', error);
+            loadingEl.innerText = 'فشل تحميل المجسم model.fbx!';
         });
 
         window.addEventListener('resize', () => {
