@@ -135,19 +135,14 @@
         ringMesh.position.y = 0.08;
         scene.add(ringMesh);
 
-        // 5. محرك الحركة والتحميل المشترك
+        // 5. محرك الحركة والتحميل
         let mixer;
         const clock = new THREE.Clock();
         const gltfLoader = new THREE.GLTFLoader();
         const fbxLoader = new THREE.FBXLoader();
 
-        console.log("بدء تحميل ملف المجسم model.glb...");
-
         gltfLoader.load('model.glb', (gltf) => {
-            console.log("تم تحميل model.glb بنجاح!");
             const model = gltf.scene;
-            
-            // ضبط الارتفاع لتقف الشخصية فوق القاعدة مباشرة
             model.position.set(0, -0.9, 0);
             scene.add(model);
 
@@ -160,12 +155,9 @@
 
             mixer = new THREE.AnimationMixer(model);
 
-            console.log("بدء تحميل ملف الحركة SSS.fbx...");
             fbxLoader.load('SSS.fbx', (animFbx) => {
-                console.log("تم تحميل SSS.fbx بنجاح!", animFbx);
                 if (animFbx.animations.length > 0) {
                     const clip = animFbx.animations[0];
-
                     clip.tracks.forEach((track) => {
                         track.name = track.name.replace('mixamorig', '');
                     });
@@ -173,31 +165,18 @@
                     const action = mixer.clipAction(clip);
                     action.reset();
                     action.play();
-                    console.log("تم تشغيل الحركة بنجاح على المجسم!");
-                } else {
-                    console.warn("تحذير: ملف SSS.fbx لا يحتوي على أي حركات (animations) بداخله!");
                 }
 
                 loadingEl.style.opacity = '0';
                 setTimeout(() => loadingEl.remove(), 500);
-            }, (xhr) => {
-                if (xhr.lengthComputable) {
-                    const percent = Math.round((xhr.loaded / xhr.total) * 100);
-                    loadingEl.innerText = `جاري تحميل الحركة... ${percent}%`;
-                }
-            }, (error) => {
-                console.error('خطأ قاتل أثناء تحميل ملف SSS.fbx:', error);
-                loadingEl.innerText = 'فشل تحميل ملف الحركة SSS.fbx!';
+            }, undefined, (error) => {
+                console.error('خطأ في تحميل الحركة:', error);
+                loadingEl.innerText = 'فشل تحميل الحركة SSS.fbx';
             });
 
-        }, (xhr) => {
-            if (xhr.lengthComputable) {
-                const percent = Math.round((xhr.loaded / xhr.total) * 100);
-                loadingEl.innerText = `جاري تحميل المجسم... ${percent}%`;
-            }
-        }, (error) => {
-            console.error('خطأ قاتل أثناء تحميل ملف model.glb:', error);
-            loadingEl.innerText = 'فشل تحميل المجسم model.glb!';
+        }, undefined, (error) => {
+            console.error('خطأ في تحميل المجسم:', error);
+            loadingEl.innerText = 'فشل تحميل المجسم model.glb (تأكد من اسم ومسار الملف)';
         });
 
         window.addEventListener('resize', () => {
@@ -209,11 +188,7 @@
         function animate() {
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
-            
-            if (mixer) {
-                mixer.update(delta);
-            }
-
+            if (mixer) mixer.update(delta);
             controls.update();
             renderer.render(scene, camera);
         }
