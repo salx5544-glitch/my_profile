@@ -47,13 +47,13 @@
             background: linear-gradient(to top, rgb(128, 0, 128), purple);
             border: 2px solid rgb(240, 2, 240);
             border-radius: 16px;
-            padding: 10px;
+            padding: 10px 20px;
             box-shadow: 0 5px 15px rgb(240, 2, 240);
             cursor: pointer;
             text-decoration: none;
             position: absolute;
             top: 20px;
-            right: 15px;
+            right: 20px;
             z-index: 10;
             color: white;
             transition: 1s;
@@ -135,18 +135,20 @@
         ringMesh.position.y = 0.08;
         scene.add(ringMesh);
 
-        // 5. محرك الحركة والتحميل المشترك (GLB للمجسم + FBX للحركة)
+        // 5. محرك الحركة والتحميل المشترك
         let mixer;
         const clock = new THREE.Clock();
         const gltfLoader = new THREE.GLTFLoader();
         const fbxLoader = new THREE.FBXLoader();
 
+        console.log("بدء تحميل ملف المجسم model.glb...");
+
         gltfLoader.load('model.glb', (gltf) => {
+            console.log("تم تحميل model.glb بنجاح!");
             const model = gltf.scene;
-
-            // **تم إنزال الشخصية قليلاً للأسفل لتقف على القاعدة مباشرة (يمكنك تعديل القيمة -0.9 حسب ارتفاع مجسمك)**
+            
+            // ضبط الارتفاع لتقف الشخصية فوق القاعدة مباشرة
             model.position.set(0, -0.9, 0);
-
             scene.add(model);
 
             model.traverse((child) => {
@@ -156,15 +158,14 @@
                 }
             });
 
-            // تجهيز الـ Mixer للمجسم
             mixer = new THREE.AnimationMixer(model);
 
-            // تحميل حركة SSS.fbx وتطبيقها على مجسم GLB
+            console.log("بدء تحميل ملف الحركة SSS.fbx...");
             fbxLoader.load('SSS.fbx', (animFbx) => {
+                console.log("تم تحميل SSS.fbx بنجاح!", animFbx);
                 if (animFbx.animations.length > 0) {
-                    const clip = animFbx.animations.length > 0 ? animFbx.animations[0] : null;
+                    const clip = animFbx.animations[0];
 
-                    // إزالة بادئة mixamorig لتتطابق أسماء العظام بسلاسة
                     clip.tracks.forEach((track) => {
                         track.name = track.name.replace('mixamorig', '');
                     });
@@ -172,20 +173,30 @@
                     const action = mixer.clipAction(clip);
                     action.reset();
                     action.play();
-                    console.log("تم تشغيل الحركة بنجاح!");
+                    console.log("تم تشغيل الحركة بنجاح على المجسم!");
                 } else {
-                    console.warn("ملف SSS.fbx لا يحتوي على حركات!");
+                    console.warn("تحذير: ملف SSS.fbx لا يحتوي على أي حركات (animations) بداخله!");
                 }
 
                 loadingEl.style.opacity = '0';
                 setTimeout(() => loadingEl.remove(), 500);
-            }, undefined, (error) => {
-                console.error('خطأ في تحميل الحركة:', error);
+            }, (xhr) => {
+                if (xhr.lengthComputable) {
+                    const percent = Math.round((xhr.loaded / xhr.total) * 100);
+                    loadingEl.innerText = `جاري تحميل الحركة... ${percent}%`;
+                }
+            }, (error) => {
+                console.error('خطأ قاتل أثناء تحميل ملف SSS.fbx:', error);
                 loadingEl.innerText = 'فشل تحميل ملف الحركة SSS.fbx!';
             });
 
-        }, undefined, (error) => {
-            console.error('خطأ في تحميل المجسم:', error);
+        }, (xhr) => {
+            if (xhr.lengthComputable) {
+                const percent = Math.round((xhr.loaded / xhr.total) * 100);
+                loadingEl.innerText = `جاري تحميل المجسم... ${percent}%`;
+            }
+        }, (error) => {
+            console.error('خطأ قاتل أثناء تحميل ملف model.glb:', error);
             loadingEl.innerText = 'فشل تحميل المجسم model.glb!';
         });
 
