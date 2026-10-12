@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AIR GUITAR & WEBCAM</title>
+<!-- مكتبات MediaPipe لتتبع اليد عبر الكاميرا -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
+body{margin:0;background:#05050f;color:#fff;font-family:'Orbitron',sans-serif;user-select:none;overflow-x:hidden;}
+.header{border:2px solid #22d3ee;border-radius:12px;margin:8px;padding:10px;display:flex;justify-content:space-between;background:#0f0a19;box-shadow:0 0 15px rgba(34,211,238,0.3)}
+
+/* نافذة الكاميرا وتتبع الأوتار في الهواء */
+.cam-container {
+  position: relative;
+  width: 94vw;
+  max-width: 450px;
+  height: 250px;
+  margin: 10px auto;
+  border: 3px solid #22d3ee;
+  border-radius: 15px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.4);
+}
+#webcam {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; transform: scaleX(-1); opacity: 0.5;
+}
+#output_canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  transform: scaleX(-1);
+}
+.strings-overlay {
+  position: absolute; inset: 0; display: flex; flex-direction: column; pointer-events: none;
+}
+.air-string {
+  flex: 1; border-bottom: 2px dashed rgba(34, 211, 238, 0.5);
+  display: flex; align-items: center; padding-left: 10px; font-size: 9px; color: #22d3ee;
+}
+.air-string.active {
+  background: rgba(168, 85, 247, 0.7); border-bottom: 3px solid #f472b6; color: #fff;
+}
+
+.farm{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:8px}
+.cell{aspect-ratio:1;background:#0f0a19;border:2px solid #222;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px}
+.cell.has-plant{background:#1a2a1a;border-color:#22c55e}
+.timer{height:8px;background:#222;border-radius:10px;margin:0 8px;overflow:hidden;border:1px solid #333}
+.timer-bar{height:100%;background:linear-gradient(90deg,#22c55e,#22d3ee);width:100%;transition:width 0.1s linear}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div><b style="color:#22c55e">🌱 النباتات: <span id="plantCount">1</span>/25</b></div>
+  <div style="text-align:right">POINTS <b id="pts" style="color:#22d3ee">0</b></div>
+</div>
+
+<div class="timer"><div class="timer-bar" id="lifeTimer"></div></div>
+<div style="text-align:center;font-size:8px;color:#aaa;margin:2px">📷 تحرك أمام الكاميرا ليعزف الجيتار تلقائياً</div>
+
+<div class="cam-container">
+  <video id="webcam" autoplay playsinline muted></video>
+  <canvas id="output_canvas"></canvas>
+  <div class="strings-overlay" id="stringsOverlay"></div>
+</div>
+
+<div class="farm" id="farm"></div>
+
+<script>
+let farm = Array(25).fill(0), pts = 0, audio = null;
+let lastPlayTime = Array(6).fill(0);
+let freqs = [130.81, 146.83, 164.81, 196.00, 220.00, 246.94];
+let stringNames = ['وتر 1 (C3)', 'وتر 2 (D3)', 'وتر 3 (E3)', 'وتر 4 (G3)', 'وتر 5 (A3)', 'وتر 6 (B3)'];
+
+let overlay = document.getElementById('stringsOverlay');
+let stringElems = [];
+for(let i=0; i<6; i++){
+  let div = document.createElement('div');
+  div.className = 'air-string';
+  div.innerHTML = `<span>🎵 ${stringNames[i]}</span>`;
+  overlay.appendChild(div);
+  stringElems.push(div);
+}
+
+function getCtx(){
+  if(!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+  if(audio.state === 'suspended') audio.resume();
+  return audio;
+}
+
+function playNote(n){
+  let c = getCtx();
+  let now = c.currentTime;
+  if(now - lastPlayTime[n] < 0.12) return; // منع التداخل السريع
+  lastPlayTime[n] = now;
+
+  let osc1 = c.createOscillator();
+  let osc2 = c.createOscillator();
+  let gain = c.createGain();
+  let f = freqs[n];
+
+  osc1.type = 'sawtooth'; osc2.type = 'triangle';
+  osc1.frequency.setValueAtTime(f, now);
+  osc2.frequency.setValueAtTime(f, now);
+
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(0.4, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+
+  osc1.connect(gain); osc2.connect(gain);
+  gain.connect(c.destination);
+  osc1.start(now); osc2.start(now);
+  osc1.stop(now + 1.0); osc2.stop(now + 1.0);
+
+  if(stringElems[n]){
+    stringElems[n].classList.add('active');
+    setTimeout(() => stringElems[n].classList.remove('active'), 120);
+  }
+}
+
+// إعداد الكاميرا وتتبع اليد عبر MediaPipe
+const videoElement = document.getElementById('webcam');
+const canvasElement = document.getElementById('output_canvas');
+const canvasCtx = canvasElement.getContext('2d');
+
+function onResults(results) {
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+  
+  if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+    const landmarks = results.multiHandLandmarks[0];
+    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#22d3ee', lineWidth: 2});
+    drawLandmarks(canvasCtx, landmarks, {color: '#f472b6', lineWidth: 1, radius: 2});
+
+    // استخدام إحداثي السبابة للعزف عند تقاطعها مع الأوتار الأفقية
+    let activeY = landmarks[8].y; 
+    let stringIndex = Math.floor(activeY * 6);
+    if(stringIndex >= 0 && stringIndex < 6){
+      playNote(stringIndex);
+    }
+  }
+  canvasCtx.restore();
+}
+
+const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+hands.setOptions({ maxNumHands: 1, modelComplexity: 0, minDetectionConfidence: 0.4, minTrackingConfidence: 0.4 });
+hands.onResults(onResults);
+
+const camera = new Camera(videoElement, {
+  onFrame: async () => {
+    canvasElement.width = videoElement.videoWidth;
+    canvasElement.height = videoElement.videoHeight;
+    await hands.send({image: videoElement});
+  },
+  width: 640, height: 480
+});
+camera.start().catch(err => console.log("الكاميرا تتطلب إذن أو غير متوفرة:", err));
+
+// نمو النباتات والنقاط
+setInterval(() => {
+  let alive = farm.filter(x => x === 1).length;
+  pts += alive;
+  document.getElementById('pts').innerText = pts;
+  
+  let empty = [];
+  farm.forEach((v, i) => { if(v === 0) empty.push(i); });
+  if(empty.length > 0 && Math.random() < 0.4 && alive < 25){
+    farm[empty[Math.floor(Math.random() * empty.length)]] = 1;
+  }
+  
+  let h = '';
+  for(let i=0; i<25; i++){
+    h += `<div class="cell ${farm[i]===1?'has-plant':''}">${farm[i]===1?'🌱':''}</div>`;
+  }
+  document.getElementById('farm').innerHTML = h;
+}, 2000);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+</body>
+</html>

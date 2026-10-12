@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>محرك ألعاب 3D - دعم كامل للهاتف والكمبيوتر</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none; /* منع الزوم والتمرير الافتراضي للهاتف */
+    }
+    #ui-panel {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      width: 280px;
+      background: rgba(20, 20, 20, 0.88);
+      backdrop-filter: blur(8px);
+      color: #fff;
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      max-height: 80vh;
+      overflow-y: auto;
+      z-index: 10;
+    }
+    h3 { margin-top: 0; border-bottom: 1px solid #444; padding-bottom: 8px; color: #4da6ff; font-size: 1.1rem; }
+    .control-group { margin-bottom: 12px; }
+    label { display: block; font-size: 0.85rem; margin-bottom: 4px; color: #ccc; }
+    input[type="range"], input[type="color"], input[type="text"], select {
+      width: 100%;
+      background: #333;
+      border: 1px solid #555;
+      color: white;
+      border-radius: 4px;
+      padding: 6px;
+      box-sizing: border-box;
+      font-size: 0.85rem;
+    }
+    .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    button {
+      background: #0066cc;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: 0.2s;
+    }
+    button:hover { background: #0088ff; }
+    button.success { background: #28a745; }
+    button.danger { background: #cc3333; }
+    button.warning { background: #e67e22; }
+    
+    /* أدوات التحكم باللمس للهاتف */
+    #joystick-container {
+      position: absolute;
+      bottom: 30px;
+      left: 30px;
+      width: 120px;
+      height: 120px;
+      background: rgba(255, 255, 255, 0.15);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      z-index: 15;
+      touch-action: none;
+    }
+    #joystick-handle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 50px;
+      height: 50px;
+      background: rgba(77, 166, 255, 0.8);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    #run-btn {
+      position: absolute;
+      bottom: 40px;
+      left: 170px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: rgba(230, 126, 34, 0.8);
+      color: white;
+      font-weight: bold;
+      border: 2px solid #fff;
+      z-index: 15;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+    }
+
+    #loading-screen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.85);
+      color: white;
+      padding: 15px 30px;
+      border-radius: 8px;
+      display: none;
+      z-index: 20;
+    }
+  </style>
+</head>
+<body>
+
+<div id="loading-screen">جاري تحميل البيانات...</div>
+
+<!-- عناصر اللمس للهاتف -->
+<div id="joystick-container">
+  <div id="joystick-handle"></div>
+</div>
+<div id="run-btn">ركض</div>
+
+<div id="ui-panel">
+  <h3>محرك ألعاب الويب</h3>
+
+  <div class="control-group">
+    <label>نمط المحرك الحالي</label>
+    <select id="engineMode">
+      <option value="builder">وضع البناء (Free Camera)</option>
+      <option value="thirdPerson" selected>وضع المنظور الثالث (Character Game)</option>
+    </select>
+  </div>
+  
+  <div class="control-group">
+    <label>لون السماء</label>
+    <input type="color" id="skyColor" value="#87ceeb">
+  </div>
+
+  <div class="control-group" id="transformControlsGroup" style="display: none;">
+    <label>وضع التحكّم بالمجسم المحدد</label>
+    <select id="transformMode">
+      <option value="translate">تحريك المكان (Translate)</option>
+      <option value="rotate">تدوير (Rotate)</option>
+      <option value="scale">تغيير الحجم (Scale)</option>
+    </select>
+  </div>
+
+  <div class="control-group">
+    <label>إدارة الشخصية الرئيسية</label>
+    <button id="toggleCharacterBtn" class="warning" style="width: 100%;">إخفاء/حذف الشخصية</button>
+  </div>
+
+  <hr style="border-color: #444;">
+
+  <h3>استيراد مجسمات خارجية</h3>
+  <div class="control-group">
+    <label>رابط ملف (.gltf / .glb)</label>
+    <input type="text" id="modelUrl" placeholder="ضع رابط المجسم هنا...">
+  </div>
+  <button id="loadModelBtn" class="success" style="width: 100%; margin-bottom: 8px;">تحميل من الرابط</button>
+
+  <hr style="border-color: #444;">
+
+  <h3>أدوات البناء الأساسية</h3>
+  <div class="control-group">
+    <label>الشكل الهندسي</label>
+    <select id="shapeType">
+      <option value="box">مكعب (جدار / أرضية)</option>
+      <option value="sphere">كرة</option>
+      <option value="cylinder">أسطوانة / عمود</option>
+      <option value="cone">مخروط</option>
+    </select>
+  </div>
+
+  <div class="control-group">
+    <label>لون المجسم</label>
+    <input type="color" id="objectColor" value="#ff9900">
+  </div>
+
+  <button id="addObjBtn" style="width: 100%;">إضافة شكل بسيط (+)</button>
+
+  <div class="btn-grid">
+    <button id="saveBtn">حفظ العالم</button>
+    <button id="loadBtn">تحميل العالم</button>
+  </div>
+  <button id="clearBtn" class="danger" style="width: 100%; margin-top: 8px;">مسح كافة العناصر</button>
+</div>
+
+<!-- المكتبات المطلوب استخدامها -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
+<script>
+  // 1. المشهد والكاميرا
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb);
+
+  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 5, 10);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
+
+  // إعداد OrbitControls
+  const orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
+  orbitControls.enableDamping = true;
+  orbitControls.dampingFactor = 0.05;
+  orbitControls.screenSpacePanning = true;
+  orbitControls.minDistance = 1;
+  orbitControls.maxDistance = 100;
+
+  const transformControls = new THREE.TransformControls(camera, renderer.domElement);
+  scene.add(transformControls);
+
+  transformControls.addEventListener('dragging-changed', (event) => {
+    orbitControls.enabled = !event.value;
+  });
+
+  // 2. الإضاءة والأرضية
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+  scene.add(ambientLight);
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  dirLight.position.set(20, 40, 20);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.width = 1024;
+  dirLight.shadow.mapSize.height = 1024;
+  scene.add(dirLight);
+
+  const gridHelper = new THREE.GridHelper(100, 100, 0x555555, 0x333333);
+  scene.add(gridHelper);
+
+  const floorGeo = new THREE.PlaneGeometry(100, 100);
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // 3. المتغيرات العامة
+  let createdObjects = [];
+  let currentEngineMode = 'thirdPerson';
+  const gltfLoader = new THREE.GLTFLoader();
+  const loadingScreen = document.getElementById('loading-screen');
+  const clock = new THREE.Clock();
+
+  // عناصر الشخصية
+  let character = null;
+  let isCharacterVisible = true;
+  let mixer = null;
+  let animations = {};
+  let currentAction = null;
+  const keys = { w: false, a: false, s: false, d: false, shift: false };
+
+  // متغيرات اللمس (Joystick)
+  const touchMove = { x: 0, y: 0 };
+  let isRunningTouch = false;
+
+  // 4. تحميل الشخصية
+  function loadPlayerCharacter() {
+    loadingScreen.style.display = 'block';
+    const characterUrl = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Fox/glTF-Binary/Fox.glb';
+
+    gltfLoader.load(characterUrl, (gltf) => {
+      if (character) {
+        scene.remove(character);
+        createdObjects = createdObjects.filter(o => o !== character);
+      }
+
+      character = gltf.scene;
+      character.scale.set(0.025, 0.025, 0.025);
+      character.position.set(0, 0, 0);
+
+      character.traverse((node) => {
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
+      });
+
+      character.userData = { isCharacter: true };
+      scene.add(character);
+      createdObjects.push(character);
+
+      mixer = new THREE.AnimationMixer(character);
+
+      if (gltf.animations.length >= 3) {
+        animations['walk'] = mixer.clipAction(gltf.animations[0]);
+        animations['run'] = mixer.clipAction(gltf.animations[1]);
+        animations['idle'] = mixer.clipAction(gltf.animations[2]);
+      } else {
+        animations['walk'] = mixer.clipAction(gltf.animations[0]);
+        animations['idle'] = mixer.clipAction(gltf.animations[0]);
+      }
+
+      setAction('idle');
+      loadingScreen.style.display = 'none';
+    });
+  }
+
+  function setAction(name) {
+    if (!animations[name] || currentAction === animations[name]) return;
+    if (currentAction) currentAction.fadeOut(0.15);
+    currentAction = animations[name];
+    currentAction.reset().fadeIn(0.15).play();
+  }
+
+  loadPlayerCharacter();
+
+  // 5. إنشاء وتحديد المجسمات
+  function createBasicObject(type, color, position = null, rotation = null, scale = null) {
+    let geometry;
+    switch(type) {
+      case 'sphere': geometry = new THREE.SphereGeometry(1, 32, 32); break;
+      case 'cylinder': geometry = new THREE.CylinderGeometry(0.8, 0.8, 2, 32); break;
+      case 'cone': geometry = new THREE.ConeGeometry(1, 2, 32); break;
+      default: geometry = new THREE.BoxGeometry(2, 2, 2);
+    }
+
+    const material = new THREE.MeshStandardMaterial({ color: color, roughness: 0.4 });
+    const mesh = new THREE.Mesh(geometry, material);
+
+    const pos = position || { x: (Math.random() - 0.5) * 20, y: 1, z: (Math.random() - 0.5) * 20 };
+    mesh.position.set(pos.x, pos.y, pos.z);
+
+    if (rotation) mesh.rotation.set(rotation.x, rotation.y, rotation.z);
+    if (scale) mesh.scale.set(scale.x, scale.y, scale.z);
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData = { isImported: false, type: type, color: color };
+
+    scene.add(mesh);
+    createdObjects.push(mesh);
+    if (currentEngineMode === 'builder') selectObject(mesh);
+  }
+
+  function loadGLTFModel(url, position = { x: 0, y: 0, z: 0 }, rotation = null, scale = { x: 1, y: 1, z: 1 }) {
+    loadingScreen.style.display = 'block';
+
+    gltfLoader.load(
+      url,
+      (gltf) => {
+        const model = gltf.scene;
+        model.position.set(position.x, position.y, position.z);
+        if (rotation) model.rotation.set(rotation.x, rotation.y, rotation.z);
+        model.scale.set(scale.x, scale.y, scale.z);
+
+        model.traverse((node) => {
+          if (node.isMesh) {
+            node.castShadow = true;
+            node.receiveShadow = true;
+          }
+        });
+
+        model.userData = { isImported: true, url: url };
+        scene.add(model);
+        createdObjects.push(model);
+        if (currentEngineMode === 'builder') selectObject(model);
+
+        loadingScreen.style.display = 'none';
+      },
+      undefined,
+      () => {
+        loadingScreen.style.display = 'none';
+        alert('تعذر تحميل الملف من الرابط.');
+      }
+    );
+  }
+
+  function selectObject(object) {
+    if (currentEngineMode === 'builder') transformControls.attach(object);
+  }
+
+  function detachObject() {
+    transformControls.detach();
+  }
+
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+
+  window.addEventListener('pointerdown', (event) => {
+    if (currentEngineMode !== 'builder' || event.target.tagName !== 'CANVAS' || transformControls.dragging) return;
+
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(createdObjects, true);
+
+    if (intersects.length > 0) {
+      let target = intersects[0].object;
+      while (target.parent && target.parent !== scene) target = target.parent;
+      selectObject(target);
+    }
+  });
+
+  // 6. التحكم عبر لوحة المفاتيح واللمس
+  window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if (k in keys) keys[k] = true;
+    if (e.key === 'Shift') keys.shift = true;
+
+    if (currentEngineMode === 'builder') {
+      switch(k) {
+        case 'w': transformControls.setMode('translate'); document.getElementById('transformMode').value = 'translate'; break;
+        case 'e': transformControls.setMode('rotate'); document.getElementById('transformMode').value = 'rotate'; break;
+        case 'r': transformControls.setMode('scale'); document.getElementById('transformMode').value = 'scale'; break;
+        case 'escape': detachObject(); break;
+      }
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    const k = e.key.toLowerCase();
+    if (k in keys) keys[k] = false;
+    if (e.key === 'Shift') keys.shift = false;
+  });
+
+  // --- إعدادات Joystick للهواتف ---
+  const joystickContainer = document.getElementById('joystick-container');
+  const joystickHandle = document.getElementById('joystick-handle');
+  const runBtn = document.getElementById('run-btn');
+  let joystickActive = false;
+
+  joystickContainer.addEventListener('touchstart', (e) => {
+    joystickActive = true;
+    updateJoystick(e.touches[0]);
+  }, { passive: false });
+
+  window.addEventListener('touchmove', (e) => {
+    if (!joystickActive) return;
+    for (let i = 0; i < e.touches.length; i++) {
+      if (e.touches[i].target === joystickContainer || joystickContainer.contains(e.touches[i].target)) {
+        updateJoystick(e.touches[i]);
+        break;
+      }
+    }
+  }, { passive: false });
+
+  const resetJoystick = () => {
+    joystickActive = false;
+    touchMove.x = 0;
+    touchMove.y = 0;
+    joystickHandle.style.transform = `translate(-50%, -50%)`;
+  };
+
+  window.addEventListener('touchend', resetJoystick);
+  window.addEventListener('touchcancel', resetJoystick);
+
+  function updateJoystick(touch) {
+    const rect = joystickContainer.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    let deltaX = touch.clientX - centerX;
+    let deltaY = touch.clientY - centerY;
+    const distance = Math.hypot(deltaX, deltaY);
+    const maxRadius = rect.width / 2;
+
+    if (distance > maxRadius) {
+      deltaX = (deltaX / distance) * maxRadius;
+      deltaY = (deltaY / distance) * maxRadius;
+    }
+
+    joystickHandle.style.transform = `translate(calc(-50% + ${deltaX}px), calc(-50% + ${deltaY}px))`;
+
+    touchMove.x = deltaX / maxRadius;
+    touchMove.y = deltaY / maxRadius;
+  }
+
+  runBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    isRunningTouch = true;
+    runBtn.style.background = 'rgba(40, 167, 69, 0.9)';
+  });
+
+  runBtn.addEventListener('touchend', () => {
+    isRunningTouch = false;
+    runBtn.style.background = 'rgba(230, 126, 34, 0.8)';
+  });
+
+  // 7. منطق حركة الشخصية
+  function updateCharacterLogic(delta) {
+    if (!character || !isCharacterVisible || currentEngineMode !== 'thirdPerson') return;
+
+    const isRunning = keys.shift || isRunningTouch;
+    const moveSpeed = isRunning ? 8.5 : 4.0;
+
+    const cameraDirection = new THREE.Vector3();
+    camera.getWorldDirection(cameraDirection);
+    cameraDirection.y = 0;
+    cameraDirection.normalize();
+
+    const cameraRight = new THREE.Vector3();
+    cameraRight.crossVectors(camera.up, cameraDirection).negate();
+
+    const moveDirection = new THREE.Vector3();
+
+    // دعم إدخالات الماوس واللوحة
+    if (keys.w) moveDirection.add(cameraDirection);
+    if (keys.s) moveDirection.sub(cameraDirection);
+    if (keys.d) moveDirection.add(cameraRight);
+    if (keys.a) moveDirection.sub(cameraRight);
+
+    // دعم إدخالات اللمس (Joystick)
+    if (Math.abs(touchMove.x) > 0.1 || Math.abs(touchMove.y) > 0.1) {
+      moveDirection.addScaledVector(cameraDirection, -touchMove.y);
+      moveDirection.addScaledVector(cameraRight, touchMove.x);
+    }
+
+    if (moveDirection.lengthSq() > 0) {
+      moveDirection.normalize();
+
+      const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
+      
+      let rotationDiff = targetAngle - character.rotation.y;
+      while (rotationDiff < -Math.PI) rotationDiff += Math.PI * 2;
+      while (rotationDiff > Math.PI) rotationDiff -= Math.PI * 2;
+      character.rotation.y += rotationDiff * 0.15;
+
+      const oldPos = character.position.clone();
+      character.position.addScaledVector(moveDirection, moveSpeed * delta);
+      const moveDelta = character.position.clone().sub(oldPos);
+
+      camera.position.add(moveDelta);
+      setAction(isRunning ? 'run' : 'walk');
+    } else {
+      setAction('idle');
+    }
+
+    orbitControls.target.copy(character.position.clone().add(new THREE.Vector3(0, 1.2, 0)));
+  }
+
+  // 8. عناصر واجهة المستخدم
+  document.getElementById('engineMode').addEventListener('change', (e) => {
+    currentEngineMode = e.target.value;
+    const transformGroup = document.getElementById('transformControlsGroup');
+    const joystickUi = document.getElementById('joystick-container');
+    const runUi = document.getElementById('run-btn');
+
+    if (currentEngineMode === 'builder') {
+      transformGroup.style.display = 'block';
+      joystickUi.style.display = 'none';
+      runUi.style.display = 'none';
+      
+      orbitControls.maxPolarAngle = Math.PI;
+      orbitControls.enablePan = true;
+    } else {
+      transformGroup.style.display = 'none';
+      joystickUi.style.display = 'block';
+      runUi.style.display = 'flex';
+      detachObject();
+
+      orbitControls.maxPolarAngle = Math.PI / 2 - 0.01;
+      
+      if (character && isCharacterVisible) {
+        orbitControls.target.copy(character.position.clone().add(new THREE.Vector3(0, 1.2, 0)));
+      }
+    }
+  });
+
+  const toggleCharacterBtn = document.getElementById('toggleCharacterBtn');
+  toggleCharacterBtn.addEventListener('click', () => {
+    if (!character) return;
+
+    isCharacterVisible = !isCharacterVisible;
+    character.visible = isCharacterVisible;
+
+    if (isCharacterVisible) {
+      toggleCharacterBtn.textContent = 'إخفاء/حذف الشخصية';
+      toggleCharacterBtn.className = 'warning';
+    } else {
+      detachObject();
+      toggleCharacterBtn.textContent = 'إعادة إظهار الشخصية';
+      toggleCharacterBtn.className = 'success';
+    }
+  });
+
+  document.getElementById('transformMode').addEventListener('change', (e) => {
+    transformControls.setMode(e.target.value);
+  });
+
+  document.getElementById('skyColor').addEventListener('input', (e) => {
+    scene.background.set(e.target.value);
+  });
+
+  document.getElementById('addObjBtn').addEventListener('click', () => {
+    createBasicObject(document.getElementById('shapeType').value, document.getElementById('objectColor').value);
+  });
+
+  document.getElementById('loadModelBtn').addEventListener('click', () => {
+    const url = document.getElementById('modelUrl').value.trim();
+    if (url) loadGLTFModel(url);
+  });
+
+  document.getElementById('saveBtn').addEventListener('click', () => {
+    const worldData = createdObjects.filter(obj => !obj.userData.isCharacter).map(obj => ({
+      isImported: obj.userData.isImported,
+      url: obj.userData.url,
+      type: obj.userData.type,
+      color: obj.material ? '#' + obj.material.color.getHexString() : null,
+      position: { x: obj.position.x, y: obj.position.y, z: obj.position.z },
+      rotation: { x: obj.rotation.x, y: obj.rotation.y, z: obj.rotation.z },
+      scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z }
+    }));
+    localStorage.setItem('my_engine_world', JSON.stringify(worldData));
+    alert('تم حفظ كافة عناصر العالم بنجاح!');
+  });
+
+  document.getElementById('loadBtn').addEventListener('click', () => {
+    const data = localStorage.getItem('my_engine_world');
+    if (data) {
+      detachObject();
+      createdObjects.forEach(obj => {
+        if (!obj.userData.isCharacter) scene.remove(obj);
+      });
+      createdObjects = character ? [character] : [];
+
+      const worldData = JSON.parse(data);
+      worldData.forEach(item => {
+        if (item.isImported) {
+          loadGLTFModel(item.url, item.position, item.rotation, item.scale);
+        } else {
+          createBasicObject(item.type, item.color, item.position, item.rotation, item.scale);
+        }
+      });
+      alert('تم استعادة العالم المحفوظ!');
+    }
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    detachObject();
+    createdObjects.forEach(obj => {
+      if (!obj.userData.isCharacter) scene.remove(obj);
+    });
+    createdObjects = character ? [character] : [];
+  });
+
+  // 9. حلقة التحديث
+  function animate() {
+    requestAnimationFrame(animate);
+
+    const delta = clock.getDelta();
+
+    if (mixer && isCharacterVisible) mixer.update(delta);
+    updateCharacterLogic(delta);
+
+    orbitControls.update();
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+</script>
+</body>
+</html>

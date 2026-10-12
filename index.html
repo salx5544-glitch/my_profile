@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profilo - Salh Idris</title>
+    
+    <!-- رابط CSS الخاص بـ Leaflet Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+        body {
+            background: #ffffff;
+            color: #333333;
+            min-height: 100vh;
+            transition: background-color 0.4s ease, color 0.4s ease;
+            overflow-x: hidden;
+        }
+        
+        body.dark-mode {
+            background-color: #121212;
+            color: #ffffff;
+        }
+        body.dark-mode .dark-btn {
+            background-color: #333333;
+            color: #ffd700;
+        }
+
+        nav {
+            background-color: goldenrod;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 5rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 5px 10px var(--nav);
+        }
+        .logo {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            background-color: #fff;
+        }
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            list-style: none;
+        }
+        a {
+            color: #000;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease;
+        }
+        a:hover {
+            color: #ffffff;
+        }
+        .dark-btn {
+            background: #000000;
+            color: #ffd700;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .dark-btn:hover {
+            opacity: 0.85;
+            transform: scale(1.03);
+        }
+
+        .burger {
+            display: none;
+            flex-direction: column;
+            cursor: pointer;
+            gap: 5px;
+        }
+        .burger span {
+            width: 25px;
+            height: 3px;
+            background-color: #000;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+        .burger.toggle span:nth-child(1) {
+            transform: translateY(8px) rotate(45deg);
+        }
+        .burger.toggle span:nth-child(2) {
+            opacity: 0;
+        }
+        .burger.toggle span:nth-child(3) {
+            transform: translateY(-8px) rotate(-45deg);
+        }
+
+        main {
+            margin: 20px;
+        }
+
+        h1 {
+            margin-bottom: 1.5rem;
+            font-size: 2rem;
+        }
+        .profile-img {
+            border-radius: 12px;
+            box-shadow: 0 5px 15px var(--boxs);
+            object-fit: cover;
+        }
+
+        .words {
+            margin: 10px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .about-section {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .mapi {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            max-width: 1000px;
+            height: 500px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+/* 1. إعداد متغیرات الألوان (عدّلها بما يناسب ألوان موقعك) */
+:root {
+    --bg-body: #ffffff;    /* لون خلفية العادي */
+    --text-color: #111111; /* لون النص العادي */
+    --boxs : rgb(17, 17, 17, 0.9);
+    --nav :  rgb(0, 0, 0 ,0.9);
+} 
+
+body.dark-mode {
+    --bg-body: #121212;    /* لون خلفية الـ Dark Mode */
+    --text-color: #f1f1f1; /* لون النص في الـ Dark Mode */
+    --boxs: rgb(255, 255, 255, 0.9);
+    --nav: rgb(255, 238, 0);
+}
+
+/* 2. ضبط الحاوية الرئيسية للمشروع */
+.project-card {
+    position: relative;
+    width: 200px;
+    height: 300px;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    display: inline-block;
+}
+
+.project-card img.showen {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.4s ease;
+}
+
+/* 3. تنسيق مربع المعلومات (Overlay Dialog) */
+.project-dialog {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    
+    /* يأخذ نفس لون خلفية الـ body تلقائياً */
+    background-color: var(--bg-body);
+    color: var(--text-color);
+    
+    padding: 15px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    
+    /* إخفاء افتراضي */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.project-dialog h3 {
+    margin: 0 0 8px 0;
+    font-size: 1.1rem;
+}
+
+.project-dialog p {
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+/* 4. إظهار المربع عند إمرار الماوس (Hover) أو عند النقر (Active) */
+.project-card:hover .project-dialog,
+.project-card.active .project-dialog {
+    opacity: 0.95; /* الشفافية تجعل المظهر عصريًا */
+    visibility: visible;
+}
+
+.project-card:hover img.showen {
+    transform: scale(1.08); /* تكبير الصورة قليلاً خلف المربع */
+}
+
+/* تنسيق زر/رابط الانتقال داخل المربع */
+.a-project {
+    padding: 6px 12px;
+    background-color: #ffd700; /* لون أصفر مميز */
+    color: #000000;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 0.85rem;
+    transition: background-color 0.2s;
+}
+
+.a-project:hover {
+    background-color: #e6c200;
+}
+        /* =========================================
+           تأثيرات الظهور أثناء التمرير (Scroll Reveal)
+           ========================================= */
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 0.8s ease, transform 0.8s ease;
+        }
+
+        .reveal-left {
+            opacity: 0;
+            transform: translateX(-50px);
+            transition: opacity 0.8s ease, transform 0.8s ease;
+        }
+
+        .reveal-right {
+            opacity: 0;
+            transform: translateX(50px);
+            transition: opacity 0.8s ease, transform 0.8s ease;
+        }
+
+        .reveal.active,
+        .reveal-left.active,
+        .reveal-right.active {
+            opacity: 1;
+            transform: translate(0, 0);
+        }
+
+        .project-card {
+            position: relative;
+            background: white;
+            border-radius: 25px;
+            padding: 0;
+        }
+        .a-project:hover {
+            color: gray;
+        }
+        .projects {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .contect {
+            background: gray;
+            margin: -10px;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+        }
+
+        .contact-icons {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+
+.icon-btn {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 22px;
+    cursor: pointer;
+    transition: transform 0.3s ease, background-color 0.3s ease;
+}
+
+/* لون وأسلوب زر الواتساب */
+.icon-btn.whatsapp {
+    background-color: #25D366;
+    color: white;
+}
+
+.icon-btn.whatsapp:hover {
+    background-color: #000;
+    transform: translateY(-5px)
+    scale(1.1);
+}
+/* لون وأسلوب زر الهاتف */
+.icon-btn.phone {
+    background-color: #ff0000;
+    color: white;
+    transform: rotate(140deg);
+}
+
+/* تأثير عند مرور الماوس */
+.icon-btn:hover {
+    background-color: #25D366;
+    transform: scale(1.1)
+    translateY(-5px)
+    rotate(25deg);
+}
+.showen {
+    border-radius: 25px;
+}
+.showen:hover {
+    transform: scale(1.1);
+    transition: 0.5s;
+}
+/* 1. ضمان عدم خروج الفقاعات عن حدود الـ nav */
+nav {
+    position: relative;/* يخفي الفقاعات عندما تتجاوز أعلى الـ nav */
+}
+
+/* 2. حاوية الفقاعات خلف المحتوى */
+.nav-bubbles {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* لمنع إعاقة النقر على الروابط */
+    z-index: 1; /* تبقى خلف أزرار وروابط الهيدر */
+}
+.nav-bubbles-link {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* لمنع إعاقة النقر على الروابط */
+    z-index: 1; /* تبقى خلف أزرار وروابط الهيدر */
+}
+
+/* تأكيد أن روابط وشعار الـ nav فوق الفقاعات */
+.logo, .nav-link, .dark-btn, .burger {
+    position: relative;
+    z-index: 2;
+}
+
+/* 3. تنسيق الفقاعات البيضاء */
+.bubble {
+    position: absolute;
+    bottom: -20px; /* تبدأ من أسفل الـ nav */
+    background: var(--bg-body); /* لون أبيض ناعم مع شفافية */
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.35); /* إضاءة خفيفة للفقاعة */
+    animation: rise 6s infinite ease-in-out;
+}
+
+/* 4. إعطاء كل فقاعة حجوماً وأماكن وسرعات مختلفة لتبدو طبيعية */
+.bubble:nth-child(1) {
+    left: 10%;
+    width: 60px;
+    height: 60px;
+    animation-duration: 5s;
+    animation-delay: 0s;
+}
+
+.bubble:nth-child(2) {
+    left: 30%;
+    width: 90px;
+    height: 90px;
+    animation-duration: 7s;
+    animation-delay: 1.5s;
+}
+
+.bubble:nth-child(3) {
+    left: 55%;
+    width: 12px;
+    height: 12px;
+    animation-duration: 4.5s;
+    animation-delay: 0.5s;
+}
+
+.bubble:nth-child(4) {
+    left: 75%;
+    width: 70px;
+    height: 70px;
+    animation-duration: 6.5s;
+    animation-delay: 2s;
+}
+
+.bubble:nth-child(5) {
+    left: 90%;
+    width: 10px;
+    height: 10px;
+    animation-duration: 5.5s;
+    animation-delay: 3s;
+}
+
+.model-3D {
+background: linear-gradient( to top ,rgb(128, 0, 128), purple);
+border: 2px solid rgb(240, 2, 240);
+border-radius: 16px;
+width: 150px;
+padding: 20px;
+box-shadow: 0 5px 15px rgb(240, 2, 240);
+cursor: pointer;
+font-size: 15px;
+transition: 1s;
+}
+.model-3D:hover {
+    background:linear-gradient(to top, rgb(240, 2, 240), purple);
+    transform: scale(1.1);
+    box-shadow: 0 10px 20px rgb(240, 2, 240);
+    transition: 1s;
+}
+/* 5. حركة صعود وحيود الفقاعات (Rise Animation) */
+@keyframes rise {
+    0% {
+        bottom: -20px;
+        transform: translateX(0) scale(0.8);
+        opacity: 0;
+    }
+    20% {
+        opacity: 0.8;
+    }
+    50% {
+        transform: translateX(15px) scale(1.1); /* تماوج أفقي خفيف */
+    }
+    80% {
+        opacity: 0.8;
+    }
+    100% {
+        bottom: 100%;
+        transform: translateX(-10px) scale(1);
+        opacity: 0;
+    }
+}
+        @media (max-width: 768px) {
+            .nav-bubbles-link {
+    display: flex;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* لمنع إعاقة النقر على الروابط */
+    z-index: 1; /* تبقى خلف أزرار وروابط الهيدر */
+}
+.bubble {
+    position: absolute;
+    bottom: 0; /* تبدأ من أسفل الـ nav */
+    background: var(--bg-body); /* لون أبيض ناعم مع شفافية */
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.35); /* إضاءة خفيفة للفقاعة */
+    animation: rise 6s infinite ease-in-out;
+}
+.nav-link {
+    position: relative;/* يخفي الفقاعات عندما تتجاوز أعلى الـ nav */
+    overflow: hidden;
+}
+            .mapi {
+                height: 350px;
+                width: 300px;
+            }
+            nav {
+                padding: 1rem 2rem; 
+            }
+            .burger {
+                display: flex;
+            }
+            .nav-link {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                width: 100%;
+                background-color: goldenrod;
+                flex-direction: column;
+                align-items: center;
+                gap: 1.5rem;
+                padding: 1.5rem 0;
+                display: none;
+                box-shadow: 0 5px 10px rgba(0, 0, 0, 0.15);
+            }
+            .nav-link.active {
+                display: flex;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="nav-bubbles">
+        <span class="bubble"></span>
+        <span class="bubble"></span>
+        <span class="bubble"></span>
+        <span class="bubble"></span>
+        <span class="bubble"></span>
+    </div>
+            <img loading="eager" class="logo" src="LOGO.png">
+            <ul class="nav-link" id="navLink">
+                            <div class="nav-bubbles-link">
+        <span class="bubble"></span>
+        <span class="bubble"></span>
+        <span class="bubble"></span>
+        <span class="bubble"></span>
+        <span class="bubble"></span>
+    </div>
+                <li><a href="#HOME">المنزل</a></li>
+                <li><a href="#LOCATION">موقعي</a></li>
+                <li><a href="#PROJECTS">مشاريعي</a></li>
+                <li><a href="#CONTACT">التواصل معي</a></li>
+                <li><button class="dark-btn" onclick="toggleDarkMode()">الوضع المظلم</button></li>
+            </ul>
+            <div class="burger" id="Burger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <h1 id="HOME" class="reveal">عني :</h1>
+        
+        <section class="about-section">
+            <!-- الصورة تظهر من اليسار -->
+            <img loading="eager" id="myImg" class="profile-img reveal-left" src="Screenshot 2026-09-29 7.31.26 PM.png" alt="Profile Logo" width="300" height="300" style="object-fit: cover; transition: all 0.6s ease;">
+            
+            <!-- النصوص تظهر من اليمين -->
+            <div class="words reveal-right">
+                <p>أهلاً بالجميع!</p>
+                <p>مرحباً بكم في موقعي الإلكتروني</p>
+                <p>ستجدون هنا كل ما تحتاجون معرفته عني.</p>
+                <p>انا مطور ويب لدي مشاريع رائعه ولدي خبر سنه .</p>
+                <p>انا ايضا مطور ذكاء اصطناعي ولدي مجموعه من نماذج الذكاء الاصطناعي.</p>
+                <p><strong>اسمي :</strong> صالح إدريس</p>
+                <p><strong>عمري :</strong> 17</p>
+                <a class="model-3D" href="me.html">عرض مجسم 3D</a>
+            </div>
+        </section>
+
+        <br><br>
+
+        <h1 id="LOCATION" class="reveal">موقعي :</h1>
+        
+        <!-- الخريطة تظهر بصعود من الأسفل -->
+        <div id="map" class="mapi reveal"></div>
+        <h1>مشروعي :</h1>
+<div class="projects reveal" id="PROJECTS">
+
+    <figcaption class="project-card">
+        <img loading="eager" src="image_a6acc1d5.jpg" class="showen" width="200px" height="300px" alt="مشروع الجيتار">
+        
+        <!-- مربع المعلومات فوق الصورة -->
+        <div class="project-dialog">
+            <h3>جيتار الحياه</h3>
+            <p>استخدم الجيتار حتى تجعل النبتات تعيش اطول وقت ممكن</p>
+            <a class="a-project" href="guitar.html" target="_blank">زيارة المشروع 🔗</a>
+        </div>
+    </figcaption>
+
+    <figcaption class="project-card">
+        <img loading="eager" src="image_fcc471e7.jpg" class="showen" width="200px" height="300px" alt="مشروع عالمي">
+        
+        <!-- مربع المعلومات فوق الصورة -->
+        <div class="project-dialog">
+            <h3>عالمي الصغير</h3>
+            <p>عالم صغير يمكنك التحكم في كل شيء فيه</p>
+            <a class="a-project" href="my_world.HTML" target="_blank">زيارة المشروع 🔗</a>
+        </div>
+    </figcaption>
+
+</div>
+        <h1>التواصل معي :</h1>
+       <div class="contect">
+ <div class="contact-icons">
+    <!-- زر الواتساب (أيقونة فقط) -->
+    <a href="https://wa.me/218911020908" target="_blank" title="واتساب">
+        <button class="icon-btn whatsapp">
+            <i class="fa-brands fa-whatsapp"></i>
+        </button>
+    </a>
+
+    <!-- زر الاتصال الهاتفي (أيقونة فقط) -->
+    <a href="tel:+218911020908" title="اتصال هاتفي">
+        <button class="icon-btn phone">
+            <i class="fa-solid fa-phone"></i>
+        </button>
+    </a>
+</div>
+</div>
+<div class="contect">
+<p>جميع الحقوق محفوظه لدي صالح ادريس</p>
+</div>
+    </main>
+
+    <!-- مكتبة Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // 1. القائمة الجانبية (Burger Menu)
+        const burger = document.getElementById('Burger');
+        const navLink = document.getElementById('navLink');
+
+        burger.addEventListener('click', () => { 
+            navLink.classList.toggle('active');
+            burger.classList.toggle('toggle');
+        });
+
+        navLink.addEventListener('click', () => {
+            navLink.classList.toggle('active');
+            burger.classList.toggle('toggle')
+        })
+        // 2. وضع الوضع الداكن (Dark Mode)
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+        }
+
+        // 3. خريطة الدبوسية (Leaflet Map)
+        const lat = 32.8336;
+        const lng = 22.2811;
+
+        const map = L.map('map').setView([lat, lng], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        const marker = L.marker([lat, lng]).addTo(map);
+        marker.bindPopup("<b>الدبوسية</b>").openPopup();
+
+        const circle = L.circle([lat, lng], {
+            color: '#102C26',
+            fillColor: '#102c26',
+            fillOpacity: 0.25,
+            radius: 3000
+        }).addTo(map);
+
+        // 4. تأثير الظهور عند التمرير (Intersection Observer)
+        const observerOptions = {
+            threshold: 0.15
+        };
+
+        const observer = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                }
+            });
+        }, observerOptions);
+
+        const revealElements = document.querySelectorAll('.reveal, .reveal-left, .reveal-right');
+        revealElements.forEach(el => observer.observe(el));
+        document.querySelectorAll('.project-card').forEach(card => {
+    card.addEventListener('click', function(e) {
+        // إذا كان النقر على رابط الانتقال، اتركه يفتح الصفحة
+        if (e.target.tagName === 'A') return;
+        
+        // تبديل ظهور المربع عند النقر على البطاقة
+        this.classList.toggle('active');
+    });
+});
+
+const Images = ["Screenshot 2026-09-29 7.31.26 PM.png", "LOGO.png" , "image_fcc471e7.jpg" , "image_a6acc1d5.jpg"];
+let i = 0;
+const img = document.getElementById("myImg");
+
+setInterval(() => {
+    img.style.filter = "blur(10px)";
+    img.style.opacity = "0.6";
+
+setTimeout(() => {
+    i = (i + 1) % Images.length;
+    img.src = Images[i];
+
+    img.onload = () => {
+        img.style.filter = "blur(0px)";
+        img.style.opacity = "1";
+    };
+}, 600)
+}, 4000)
+    </script>
+</body>
+</html>
